@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>录音软件</title>
+    <link href="../static/layui_2.9.14/css/layui.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f7f7f7;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            margin-top: 50px;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+        }
+        .container legend {
+            font-size: 1.8em;
+            color: #333;
+            font-weight: bold;
+        }
+        .form-item {
+            margin-bottom: 25px;
+        }
+        .form-item label {
+            font-size: 1.1em;
+            color: #666;
+        }
+        .layui-input, select {
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .duration-display {
+            font-size: 2em;
+            font-weight: bold;
+            color: #FF5722;
+            text-align: center;
+            display: block;
+            margin-top: 15px;
+        }
+        .button-group {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .button-group button {
+            width: 150px;
+            height: 50px;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .layui-btn-primary {
+            background-color: #1E9FFF;
+            color: #fff;
+        }
+        .layui-btn-primary:hover {
+            background-color: #0C87D3;
+        }
+        .layui-btn-warm {
+            background-color: #FFB800;
+            color: #fff;
+        }
+        .layui-btn-warm:hover {
+            background-color: #D69600;
+        }
+        .layui-btn-danger {
+            background-color: #FF5722;
+            color: #fff;
+        }
+        .layui-btn-danger:hover {
+            background-color: #D44712;
+        }
+        .layui-input-block {
+            text-align: left;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .button-group button {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layui-container">
+        <div class="container layui-form">
+            <fieldset class="layui-elem-field layui-field-title">
+                <legend>录音软件</legend>
+            </fieldset>
+
+            <div class="layui-row layui-col-space15 form-item">
+                <div class="layui-col-md6">
+                    <label class="layui-form-label">用户</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="seat" placeholder="请输入用户信息" class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-col-md6">
+                    <label class="layui-form-label">客户</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="customer" placeholder="请输入客户信息" class="layui-input">
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-row layui-col-space15 form-item">
+                <div class="layui-col-md12">
+                    <label class="layui-form-label">录音格式</label>
+                    <div class="layui-input-block">
+                        <select id="format" class="layui-input">
+                            <option value="wav">WAV</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-row layui-col-space15 form-item">
+                <div class="layui-col-md12">
+                    <label class="layui-form-label">录音时长</label>
+                    <div class="layui-input-block">
+                        <span id="duration" class="duration-display">00:00:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layui-row layui-col-space15 button-group">
+                <button id="start" class="layui-btn layui-btn-primary">开始录音</button>
+                <button id="pause" class="layui-btn layui-btn-warm" disabled>暂停录音</button>
+                <button id="stop" class="layui-btn layui-btn-danger" disabled>结束录音</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/layui_2.9.14/layui.js"></script>
+    <script>
+        let startTime, elapsedTime = 0, interval;
+        let recording = false;
+        let isPaused = false;
+
+        // 开始录音
+        document.getElementById('start').addEventListener('click', function() {
+            const seat = document.getElementById('seat').value;
+            const customer = document.getElementById('customer').value;
+            const format = document.getElementById('format').value;
+
+            if (!seat || !customer) {
+                alert('请输入用户和客户信息');
+                return;
+            }
+
+            fetch('/audio/start_recording', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ seat, customer, format })
+            }).then(response => response.json()).then(data => {
+                if (data.status === "Recording started") {
+                    startTime = Date.now() - elapsedTime; // 保持已经过去的时间
+                    interval = setInterval(updateDuration, 1000);
+                    recording = true;
+                    isPaused = false;
+                    document.getElementById('start').disabled = true;
+                    document.getElementById('pause').disabled = false;
+                    document.getElementById('stop').disabled = false;
+                }
+            });
+        });
+
+        // 暂停录音
+        document.getElementById('pause').addEventListener('click', function() {
+            if (recording) {
+                const apiEndpoint = isPaused ? '/audio/resume_recording' : '/audio/pause_recording';
+                fetch(apiEndpoint, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status) {
+                            if (isPaused) {
+                                startTime = Date.now() - elapsedTime; // 继续计时时保留已记录时间
+                                interval = setInterval(updateDuration, 1000);
+                                document.getElementById('pause').innerText = "暂停录音";
+                            } else {
+                                clearInterval(interval);
+                                elapsedTime = Date.now() - startTime; // 暂停时记录已过去的时间
+                                document.getElementById('pause').innerText = "继续录音";
+                            }
+                            isPaused = !isPaused;
+                        }
+                    });
+            }
+        });
+
+        // 结束录音
+        document.getElementById('stop').addEventListener('click', function() {
+            const seat = document.getElementById('seat').value;
+            const customer = document.getElementById('customer').value;
+            const format = document.getElementById('format').value;
+
+            fetch('/audio/stop_recording', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ seat, customer, format })
+            }).then(response => response.json()).then(data => {
+                if (data.status === "Recording stopped") {
+                    clearInterval(interval);
+                    elapsedTime = 0; // 录音结束后重置已过去的时间
+                    document.getElementById('duration').innerText = "00:00:00";
+                    document.getElementById('start').disabled = false;
+                    document.getElementById('pause').disabled = true;
+                    document.getElementById('stop').disabled = true;
+                }
+            });
+        });
+
+        // 更新录音时长
+        function updateDuration() {
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const hours = String(Math.floor(elapsed / 3600000)).padStart(2, '0');
+            const minutes = String(Math.floor((elapsed % 3600000) / 60000)).padStart(2, '0');
+            const seconds = String(Math.floor((elapsed % 60000) / 1000)).padStart(2, '0');
+            document.getElementById('duration').innerText = `${hours}:${minutes}:${seconds}`;
+        }
+    </script>
+</body>
+</html>
